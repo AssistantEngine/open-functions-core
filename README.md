@@ -325,7 +325,7 @@ Array
 )
 ```
 
-## Examples
+## Example Open Functions
 
 ### DeliveryOpenFunction
 

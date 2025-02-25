@@ -75,14 +75,18 @@ class MessageList
      */
     public function toArray(): array
     {
-        // Let each extension modify the message list (for example, by prepending messages)
-        foreach ($this->extensions as $extension) {
-            $extension->extend($this);
+        // Create a clone of this message list so that extensions don't affect the original.
+        $clone = clone $this;
+
+        // Let each extension modify the cloned message list.
+        foreach ($clone->extensions as $extension) {
+            $extension->extend($clone);
         }
 
+        // Convert the cloned list's messages to an array.
         return array_map(function (Message $message) {
             return $message->toArray();
-        }, $this->messages);
+        }, $clone->messages);
     }
 
     /**

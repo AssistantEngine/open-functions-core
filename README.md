@@ -7,7 +7,7 @@ Using built-in helpers like *FunctionDefinition* and *Parameter*, developers can
 - **Function Invocation:**
 The *AbstractOpenFunction* class includes a standardized method (callMethod) to invoke the actual implementation of the function. This method guarantees that results are wrapped into a Response object, handling single responses, arrays of response items, and even exceptions in a unified manner.
 - **Message Handling:**
-Additional helper classes are provided for working with messages (*UserMessage*, *AssistantMessage*, *DeveloperMessage*, and *ToolMessage*) and managing message lists. This makes it easier to integrate function calls into conversation flows with LLMs.
+Additional helper classes are provided for working with messages (*UserMessage*, *AssistantMessage*, *DeveloperMessage*, and *ToolMessage*composr) and managing message lists. This makes it easier to integrate function calls into conversation flows with LLMs.
 
 Together, these components simplify the process of integrating tool calling capabilities into your application, reducing boilerplate and ensuring that both the function definitions and their invocations follow a clear, predictable standard.
 

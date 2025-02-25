@@ -325,7 +325,7 @@ Array
 )
 ```
 
-## Examples
+## Example Open Functions
 
 ### DeliveryOpenFunction
 
@@ -339,8 +339,6 @@ See [DeliveryOpenFunction.php](src/Examples/DeliveryOpenFunction.php) for a real
 See [WeatherOpenFunction.php](src/Examples/WeatherOpenFunction.php) for an example that:
 - Fetches (or simulates) current weather conditions.
 - Simulates multi-day forecasts.
-
-Each method is documented in-line, illustrating how to return a TextResponseItem or a more advanced response if needed.
 
 ## Contributing
 

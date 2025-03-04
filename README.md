@@ -220,10 +220,40 @@ To invoke the function:
 $weatherFunction = new WeatherOpenFunction();
 
 // Call the 'getWeather' method via callMethod.
-$response = $weatherFunction->callMethod('getWeather', ['Paris']);
+$response = $weatherFunction->callMethod('getWeather', ['cityName' => 'New York']);
 
 // Output the response as an array.
 print_r($response->toArray());
+```
+
+and if you used the registry
+
+```php
+<?php
+// Execute the function call using the registry.
+$response = $registry->executeFunctionCall('celsius_getWeather', ['cityName' => 'New York']);
+// Output the response as an array.
+print_r($response->toArray());
+```
+
+so if you would use it within the llm loop it could look like something like this
+
+```php
+// A common llm call
+$response = $client->chat()->create([
+    'model'         => 'gpt-4o',
+    'messages'      => $conversationArray, 
+    'tools'         => $toolDefinitions,
+]);
+
+if (isset($response->choices[0]->message->toolCalls)) {
+    foreach ($response->choices[0]->message->toolCalls as $toolCall) {
+        $namespacedName = $toolCall['function']['name'] ?? null;
+        $argumentsJson = $toolCall['function']['arguments'] ?? '{}';
+    
+        $response = $registry->executeFunctionCall($namespacedName, json_decode($argumentsJson, true));
+    }
+}
 ```
 
 ## Contributing

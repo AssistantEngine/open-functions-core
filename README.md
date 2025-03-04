@@ -35,7 +35,9 @@ Based on the OpenAI schema, the available message types are exposed as primitive
 
 ```php
 <?php
+use AssistantEngine\OpenFunctions\Core\Models\Messages\Content\ToolCall;
 use AssistantEngine\OpenFunctions\Core\Models\Messages\DeveloperMessage;
+use AssistantEngine\OpenFunctions\Core\Models\Messages\ToolMessage;
 use AssistantEngine\OpenFunctions\Core\Models\Messages\UserMessage;
 use AssistantEngine\OpenFunctions\Core\Models\Messages\AssistantMessage;
 use AssistantEngine\OpenFunctions\Core\Models\Messages\MessageList;
@@ -43,10 +45,13 @@ use AssistantEngine\OpenFunctions\Core\Models\Messages\MessageList;
 // Define an array of messages based on the OpenAI API schema.
 // These primitives can be used to structure the conversation context.
 $messages = [
-    new DeveloperMessage("You are ChatGPT, a helpful assistant."),
+    new DeveloperMessage("You are a helpful assistant."),
     new UserMessage("What's the weather like today in Paris?"),
+    (new AssistantMessage())
+        ->addToolCall(new ToolCall("tool_call_1", "getWeather", json_encode(["cityName" => "Paris"]))),
+    new ToolMessage("The weather in Paris is sunny with a temperature of 24°C.", "tool_call_1"),
     new AssistantMessage("The current weather in Paris is sunny with a high of 24°C."),
-    new UserMessage("Thanks! And can I order a coffee?")
+    new UserMessage("Thanks!")
 ];
 
 // Create a MessageList and add the messages array
@@ -136,9 +141,9 @@ $response = $client->chat()->create([
 
 #### Open Function Registry
 
-In some scenarios, you may want to use the same open function more than once with different configurations, or you might have different open functions that define methods with the same name. To handle these cases, the library provides an **OpenFunction Registry**. This registry allows you to register each function under a unique namespace, ensuring that even if functions share the same underlying method name, they remain distinct.
+In some scenarios, you may want to use the same **OpenFunction** more than once with different configurations, or you might have different **OpenFunctions** that define methods with the same name. To handle these cases, the library provides an **OpenFunction Registry**. This registry allows you to register each function under a unique namespace, ensuring that even if functions share the same underlying method name, they remain distinct.
 
-For example, suppose you have two instances of WeatherOpenFunction (perhaps one for local weather and one for global weather). You can register each with a different namespace as follows:
+For example, suppose you want one WeatherOpenFunction instance to operate in Celsius (the default) and another in Fahrenheit. You could register them as follows:
 
 ```php
 <?php
@@ -174,6 +179,52 @@ $response = $client->chat()->create([
 ```
 
 In this example, the registry ensures that even though both WeatherOpenFunction instances share the same method names (like getWeather), they are uniquely identified by their namespaces (celsius and fahrenheit). This separation allows you to call the appropriate function based on the desired temperature unit without any naming collisions.
+
+### Function Calling
+
+Implement all callable methods within your **OpenFunction** class. Each method should return a string, a text response, a binary response, or a list of responses. The callMethod in the abstract class ensures the output is consistently wrapped.
+
+For example, in WeatherOpenFunction:
+
+```php
+<?php
+use AssistantEngine\OpenFunctions\Core\Contracts\AbstractOpenFunction;
+use AssistantEngine\OpenFunctions\Core\Helpers\FunctionDefinition;
+use AssistantEngine\OpenFunctions\Core\Helpers\Parameter;
+use AssistantEngine\OpenFunctions\Core\Models\Responses\TextResponseItem;
+
+class WeatherOpenFunction extends AbstractOpenFunction
+{
+    /**
+     * Returns the current weather for the given city.
+     *
+     * @param string $cityName
+     * @return TextResponseItem
+     */
+    public function getWeather(string $cityName)
+    {
+        $weathers = ['sunny', 'rainy', 'cloudy', 'stormy', 'snowy', 'windy'];
+        $weather = $weathers[array_rand($weathers)];
+    
+        return new TextResponseItem("The weather in {$cityName} is {$weather}.");
+    }
+    
+    // ...
+}
+```
+
+To invoke the function:
+
+```php
+// Instantiate the WeatherOpenFunction.
+$weatherFunction = new WeatherOpenFunction();
+
+// Call the 'getWeather' method via callMethod.
+$response = $weatherFunction->callMethod('getWeather', ['Paris']);
+
+// Output the response as an array.
+print_r($response->toArray());
+```
 
 ## Contributing
 

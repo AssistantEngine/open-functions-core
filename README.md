@@ -134,6 +134,47 @@ $response = $client->chat()->create([
 // Process the response and execute any tool calls as needed.
 ```
 
+#### Open Function Registry
+
+In some scenarios, you may want to use the same open function more than once with different configurations, or you might have different open functions that define methods with the same name. To handle these cases, the library provides an **OpenFunction Registry**. This registry allows you to register each function under a unique namespace, ensuring that even if functions share the same underlying method name, they remain distinct.
+
+For example, suppose you have two instances of WeatherOpenFunction (perhaps one for local weather and one for global weather). You can register each with a different namespace as follows:
+
+```php
+<?php
+use AssistantEngine\OpenFunctions\Core\Examples\WeatherOpenFunction;
+use AssistantEngine\OpenFunctions\Core\Services\OpenFunctionRegistry;
+
+// Create an instance of the registry.
+$registry = new OpenFunctionRegistry();
+
+// Instantiate two WeatherOpenFunction instances.
+// For this example, imagine the WeatherOpenFunction can be configured to use different temperature units.
+// The first instance is set for Celsius (default), and the second for Fahrenheit.
+$weatherCelsius = new WeatherOpenFunction("celsius"); // Configured to return temperatures in Celsius.
+$weatherFahrenheit = new WeatherOpenFunction("fahrenheit"); // Imagine this instance is configured to return Fahrenheit.
+
+// Register the functions under different namespaces.
+// The registry automatically prefixes function names with the namespace (e.g., "celsius_getWeather", "fahrenheit_getWeather").
+$registry->registerOpenFunction('celsius', 'Weather functions using Celsius.', $weatherCelsius);
+$registry->registerOpenFunction('fahrenheit', 'Weather functions using Fahrenheit.', $weatherFahrenheit);
+
+// Retrieve all namespaced function definitions to pass to the OpenAI client.
+$toolDefinitions = $registry->getFunctionDefinitions();
+
+// Use these tool definitions in the client call.
+$response = $client->chat()->create([
+    'model'    => 'gpt-4o',
+    'messages' => $conversationArray,
+    'tools'    => $toolDefinitions,
+]);
+
+// Later, when the client calls a function, the registry will use the namespaced function name 
+// (e.g., "celsius_getWeather" or "fahrenheit_getWeather") to invoke the correct method.
+```
+
+In this example, the registry ensures that even though both WeatherOpenFunction instances share the same method names (like getWeather), they are uniquely identified by their namespaces (celsius and fahrenheit). This separation allows you to call the appropriate function based on the desired temperature unit without any naming collisions.
+
 ## Contributing
 
 We welcome contributions from the community! Feel free to submit pull requests, open issues, and help us improve the package.

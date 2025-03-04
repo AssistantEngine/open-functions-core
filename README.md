@@ -180,6 +180,50 @@ $response = $client->chat()->create([
 
 In this example, the registry ensures that even though both WeatherOpenFunction instances share the same method names (like getWeather), they are uniquely identified by their namespaces (celsius and fahrenheit). This separation allows you to call the appropriate function based on the desired temperature unit without any naming collisions.
 
+It can be a good idea to inform the LLM about the different namespaces and give a little more context. In order to do this, you might want to add a dedicated developer message to the message list that explains the namespaces. To achieve this dynamically, the concept of a **Message List Extension** is implemented. Extensions implement a specific interface and are invoked when the message list is built, giving you the opportunity to modify or extend the messages.
+
+#### Message List Extensions
+
+Sometimes it’s useful to add a message that explains context details to the LLM. For instance, you might want to inform the model about the namespaces registered by your tool. To achieve this dynamically, you can create an extension that implements the **MessageListExtensionInterface**. Once added to the message list, the extension is invoked automatically during the conversion process, allowing you to inject extra messages.
+
+For example, the **OpenFunctionRegistry** class implements this interface and in its **extend()** method it prepends a developer message that lists the namespaces:
+
+```php
+/**
+ * Extend the message list by prepending a developer message with namespace details.
+ *
+ * @param MessageList $messageList
+ * @return void
+ */
+public function extend(MessageList $messageList): void
+{
+    if (empty($this->registry)) {
+        return;
+    }
+
+    $devMessage = $this->getNamespacesDeveloperMessage();
+    $messageList->prependMessages([$devMessage]);
+}
+```
+
+To add an extension to your message list, simply use the addExtension() method on your MessageList instance. Here’s how you can register the OpenFunctionRegistry as an extension:
+
+```php
+use AssistantEngine\OpenFunctions\Core\Models\Messages\MessageList;
+use AssistantEngine\OpenFunctions\Core\Services\OpenFunctionRegistry;
+
+// Instantiate your registry and register any open functions as needed.
+$registry = new OpenFunctionRegistry();
+// (Assume functions are registered here...)
+
+// Create a message list and add the registry as an extension.
+$messageList = new MessageList();
+$messageList->addExtension($registry);
+
+// When converting to an array, the registry extension prepends the developer message.
+$conversationArray = $messageList->toArray();
+```
+
 ### Function Calling
 
 Implement all callable methods within your **OpenFunction** class. Each method should return a string, a text response, a binary response, or a list of responses. The callMethod in the abstract class ensures the output is consistently wrapped.

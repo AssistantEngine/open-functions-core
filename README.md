@@ -1,42 +1,7 @@
 # Open Functions Core
 
-**Open Functions** provide a standardized way to implement and invoke functions for tool calling with large language models (LLMs). They encapsulate both the generation of structured function definitions and the actual function execution within a unified interface. At the heart of this framework is the *AbstractOpenFunction* class, which standardizes:
+This library provides a set of primitives that simplify LLM calling. It offers an easy way to define messages and message lists, create tool definitions, and execute tool calls. By abstracting these core functionalities, OpenFunctions Core helps you reduce boilerplate code and quickly integrate advanced tool-calling capabilities into your LLM-powered applications.
 
-- **Function Definition Generation:**
-Using built-in helpers like *FunctionDefinition* and *Parameter*, developers can define function schemas that are fully compliant with LLM tool-calling requirements. This ensures that every function exposes its parameters, types, and descriptions in a consistent format.
-- **Function Invocation:**
-The *AbstractOpenFunction* class includes a standardized method (callMethod) to invoke the actual implementation of the function. This method guarantees that results are wrapped into a Response object, handling single responses, arrays of response items, and even exceptions in a unified manner.
-- **Message Handling:**
-Additional helper classes are provided for working with messages (*UserMessage*, *AssistantMessage*, *DeveloperMessage*, and *ToolMessage*composr) and managing message lists. This makes it easier to integrate function calls into conversation flows with LLMs.
-
-Together, these components simplify the process of integrating tool calling capabilities into your application, reducing boilerplate and ensuring that both the function definitions and their invocations follow a clear, predictable standard.
-
-## Table of Contents
-- [Features](#features)
-- [Installation](#installation)
-- [Basic Concepts](#basic-concepts)
-  - [AbstractOpenFunction](#abstractopenfunction)
-  - [FunctionDefinition & Parameter](#functiondefinition--parameter)
-  - [OpenFunctionRegistry](#openfunctionregistry)
-  - [Messages & MessageList](#messages--messagelist)
-- [Usage Examples](#usage-examples)
-  - [Registering and Calling Functions](#registering-and-calling-functions)
-  - [Using OpenAI PHP SDK to Call a Function](#using-openai-php-sdk-to-call-a-function)
-  - [Utilizing the Function Registry with OpenAI](#utilizing-the-function-registry-with-openai)
-  - [Working with Responses](#working-with-responses)
-- [Examples](#examples)
-  - [DeliveryOpenFunction](#deliveryopenfunction)
-  - [WeatherOpenFunction](#weatheropenfunction)
-- [Contributing](#contributing)
-- [License](#license)
-
-## Features
-- **AbstractOpenFunction**: Base class for creating custom Open Functions.
-- **FunctionDefinition and Parameter**: Helpers to generate valid function definitions for LLM function calling.
-- **OpenFunctionRegistry**: Namespace and manage multiple Open Functions.
-- **Message classes**: Build conversation history in an object-oriented way (UserMessage, AssistantMessage, DeveloperMessage, etc.).
-- **MessageList and Extensions**: Manage message lists and hook in additional messages (e.g., developer instructions about available namespaces).
-- **Response Objects**: Standardized function call return data (success/failure, multiple items, binary/text, etc.).
 
 ## Installation
 Install the package via Composer:
@@ -45,300 +10,322 @@ Install the package via Composer:
 composer require assistant-engine/open-functions-core
 ```
 
-## Basic Concepts
-### AbstractOpenFunction
-The `AbstractOpenFunction` class is the foundation for all Open Functions. Extend this class to implement your functions. It:
+## Usage
 
-- Provides a `callMethod(...)` handler that wraps output into a Response.
-- Declares an abstract `generateFunctionDefinitions()` method for function definitions.
-- Ensures consistent error handling in case of invalid function calls or exceptions.
+You can use this library for the following challenges:
 
-#### Example: HelloWorld Open Function Using FunctionDefinition and Parameter
+```php
+// A common llm call
+$response = $client->chat()->create([
+    'model'         => 'gpt-4o',
+    'messages'      => $messages, // 1. Building the messages array
+    'tools'         => $functionDefinitions, // 2. Collect the right function definitions
+]);
+
+if (isset($response->choices[0]->message->toolCalls)) {
+    foreach ($response->choices[0]->message->toolCalls as $toolCall) {
+        // 3. Executing the requested tool call
+    }
+}
+```
+
+## Messages
+
+Based on the OpenAI schema, the available message types are exposed as primitives. You can use these as building blocks to structure your conversation. The following example shows how to define an array of messages, add them to a MessageList, and convert that list to an array for use in an LLM call.
+
+```php
+<?php
+use AssistantEngine\OpenFunctions\Core\Models\Messages\Content\ToolCall;
+use AssistantEngine\OpenFunctions\Core\Models\Messages\DeveloperMessage;
+use AssistantEngine\OpenFunctions\Core\Models\Messages\ToolMessage;
+use AssistantEngine\OpenFunctions\Core\Models\Messages\UserMessage;
+use AssistantEngine\OpenFunctions\Core\Models\Messages\AssistantMessage;
+use AssistantEngine\OpenFunctions\Core\Models\Messages\MessageList;
+
+// Define an array of messages based on the OpenAI API schema.
+// These primitives can be used to structure the conversation context.
+$messages = [
+    new DeveloperMessage("You are a helpful assistant."),
+    new UserMessage("What's the weather like today in Paris?"),
+    (new AssistantMessage())
+        ->addToolCall(new ToolCall("tool_call_1", "getWeather", json_encode(["cityName" => "Paris"]))),
+    new ToolMessage("The weather in Paris is sunny with a temperature of 24°C.", "tool_call_1"),
+    new AssistantMessage("The current weather in Paris is sunny with a high of 24°C."),
+    new UserMessage("Thanks!")
+];
+
+// Create a MessageList and add the messages array
+$messageList = new MessageList();
+$messageList->addMessages($messages);
+
+// Convert the MessageList to an array for use in an API call
+$conversationArray = $messageList->toArray();
+
+// These definitions can now be used as the tools parameter in your OpenAI client call.
+$response = $client->chat()->create([
+    'model'    => 'gpt-4o',
+    'messages' => $conversationArray
+]);
+
+```
+
+## Tool Calling
+
+In order to enable tool calling, the common challenge is to both define the function definitions and expose the methods to make tool calling possible. To address this, the concept of an **OpenFunction** is introduced. Inside an **OpenFunction**, you generate the function definitions and implement the methods that the LLM can invoke. The **AbstractOpenFunction** class provides convenience methods such as callMethod() to wrap the output in a standardized response and handle errors consistently.
+
+### Function Definitions
+
+Each class that extends the abstract open function must implement the generateFunctionDefinitions() method. This method is responsible for describing the functions that your tool exposes. To build these descriptions, you can use the provided helper classes:
+
+- **FunctionDefinition:** This class is used to create a structured schema for a function. It accepts a function name and a short description and can include details about parameters.
+- **Parameter:** This helper is used to define parameters for your function. It allows you to set the type (e.g., string, number, boolean) and additional details like description and whether the parameter is required.
+
+For example, here’s a simple implementation:
 
 ```php
 <?php
 use AssistantEngine\OpenFunctions\Core\Contracts\AbstractOpenFunction;
-use AssistantEngine\OpenFunctions\Core\Models\Responses\TextResponseItem;
 use AssistantEngine\OpenFunctions\Core\Helpers\FunctionDefinition;
 use AssistantEngine\OpenFunctions\Core\Helpers\Parameter;
+use AssistantEngine\OpenFunctions\Core\Models\Responses\TextResponseItem;
 
-class HelloWorldOpenFunction extends AbstractOpenFunction
+class WeatherOpenFunction extends AbstractOpenFunction
 {
     /**
      * Generate function definitions.
      *
-     * This method returns a schema that defines the "helloWorld" function.
+     * This method returns a schema defining the "getWeather" function.
+     * It requires a cityName parameter to fetch the current weather.
+     *
+     * @return array
      */
     public function generateFunctionDefinitions(): array
     {
-        // Create a new function definition for helloWorld.
-        $functionDef = new FunctionDefinition(
-            'helloWorld',
-            'Returns a friendly greeting.'
-        );
-
-        // In this simple example, no parameters are required.
-        // If parameters were needed, you could add them like this:
-        // $functionDef->addParameter(Parameter::string("name")
-        //     ->description("Optional name to greet")
-        //     ->required());
+        // Create a function definition for getWeather.
+        $functionDef = new FunctionDefinition('getWeather', 'Returns the current weather for a given city.');
         
-        // Return the function schema as an array.
+        // Add a required parameter for the city name.
+        $functionDef->addParameter(
+            Parameter::string('cityName')
+                ->description('The name of the city to get the weather for.')
+                ->required()
+        );
+        
+        // Return the function definition as an array.
         return [$functionDef->createFunctionDescription()];
     }
-
-    /**
-     * The actual implementation of the function.
-     *
-     * @return TextResponseItem A text response containing the greeting.
-     */
-    public function helloWorld()
-    {
-        return new TextResponseItem("Hello, world!");
-    }
 }
+```
 
-// --- Usage Example ---
+Once you have implemented your open functions (such as the WeatherOpenFunction), you can generate their function definitions and pass them to the OpenAI client as the tools parameter. For example:
 
-// Instantiate the open function.
-$helloFunction = new HelloWorldOpenFunction();
+```php
+<?php
+use AssistantEngine\OpenFunctions\Core\Examples\WeatherOpenFunction;
 
-// Generate function definitions to be used as the "tools" parameter.
-$tools = $helloFunction->generateFunctionDefinitions();
+// Instantiate the WeatherOpenFunction.
+$weatherFunction = new WeatherOpenFunction();
 
-// Example: Using the tools in an OpenAI API call (pseudo-code)
-// Assume you have an OpenAI client that accepts a "tools" parameter.
-$client = new OpenAIClient('YOUR_API_KEY');
+// Generate the function definitions. This creates a schema for functions like "getWeather" and "getForecast".
+$functionDefinitions = $weatherFunction->generateFunctionDefinitions();
+
+// These definitions can now be used as the tools parameter in your OpenAI client call.
 $response = $client->chat()->create([
     'model'    => 'gpt-4o',
-    'messages' => [
-        ['role' => 'user', 'content' => 'Greet me please.']
-    ],
-    'tools'    => $tools,
+    'messages' => $conversationArray,
+    'tools'    => $functionDefinitions,
 ]);
 
-// Output the response content.
-print_r($response);
-
+// Process the response and execute any tool calls as needed.
 ```
 
-In this example:
-- HelloWorldOpenFunction extends the abstract open function class.
-- The generateFunctionDefinitions method uses the FunctionDefinition helper to create the function schema. Although no parameters are required here, the code shows how to add one using the Parameter helper if needed.
-- The helloWorld method implements the function to return a “Hello, world!” greeting.
-- Finally, the tool definitions are extracted and passed as the tools parameter when calling the OpenAI API.
+#### Open Function Registry
 
-### FunctionDefinition & Parameter
-These classes help build a JSON schema definition for your function:
+In some scenarios, you may want to use the same **OpenFunction** more than once with different configurations, or you might have different **OpenFunctions** that define methods with the same name. To handle these cases, the library provides an **OpenFunction Registry**. This registry allows you to register each function under a unique namespace, ensuring that even if functions share the same underlying method name, they remain distinct.
+
+For example, suppose you want one WeatherOpenFunction instance to operate in Celsius (the default) and another in Fahrenheit. You could register them as follows:
 
 ```php
-use AssistantEngine\OpenFunctions\Core\Helpers\FunctionDefinition;
-use AssistantEngine\OpenFunctions\Core\Helpers\Parameter;
-
-// Create a function definition with name "myFunction" and a short description
-$funcDef = new FunctionDefinition('myFunction', 'A function that does something');
-
-// Add a required string parameter called "inputValue"
-$funcDef->addParameter(
-    Parameter::string('inputValue')
-        ->description('An input for the function')
-        ->required()
-);
-
-// Generate the final definition array for usage with OpenAI
-$definition = $funcDef->createFunctionDescription();
-```
-
-### OpenFunctionRegistry
-The OpenFunctionRegistry is a centralized place to:
-1.	Register one or more AbstractOpenFunction instances under a specific namespace (e.g., delivery, weather).
-2.	Retrieve all aggregated function definitions.
-3.	Execute a namespaced function call by name (e.g., delivery_orderProduct).
-
-The registry also implements MessageListExtensionInterface, meaning it can automatically prepend a developer message about the registered namespaces if you add it as an extension in your MessageList.
-
-### Messages & MessageList
-All conversation elements (user input, system instructions, developer instructions, tool/assistant responses) are represented by:
-- **UserMessage:** The user’s input.
-- **AssistantMessage:** The model’s response.
-- **SystemMessage:** Traditional system-level instructions for older OpenAI models.
-- **DeveloperMessage:** Developer instructions for the newer o1 models (replacement for SystemMessage).
-- **ToolMessage:** Responses from a tool to the LLM.
-
-These are stored and managed in a **MessageList**, which can be converted to an array suitable for the OpenAI Chat API.
-
-## Usage Examples
-
-### Registering and Calling Functions
-
-Below is a minimal example using the DeliveryOpenFunction and WeatherOpenFunction from the repository’s Examples folder. We will:
-1.	Instantiate our Open Functions.
-2.	Register them with a namespace in the OpenFunctionRegistry.
-3.	Fetch their combined function definitions.
-4.	Execute a test call locally using the executeFunctionCall method.
-
-```php
-use AssistantEngine\OpenFunctions\Core\Examples\DeliveryOpenFunction;
+<?php
 use AssistantEngine\OpenFunctions\Core\Examples\WeatherOpenFunction;
 use AssistantEngine\OpenFunctions\Core\Services\OpenFunctionRegistry;
 
-$deliveryFunction = new DeliveryOpenFunction(['Pizza', 'Burger', 'Sushi']);
-$weatherFunction  = new WeatherOpenFunction();
-
+// Create an instance of the registry.
 $registry = new OpenFunctionRegistry();
-// Register DeliveryOpenFunction under the "delivery" namespace
-$registry->registerOpenFunction(
-    'delivery',
-    'Handles product delivery, orders, and shipping details.',
-    $deliveryFunction
-);
-// Register WeatherOpenFunction under the "weather" namespace
-$registry->registerOpenFunction(
-    'weather',
-    'Handles weather and forecasting services.',
-    $weatherFunction
-);
 
-// Access all function definitions (namespaced)
-$allDefinitions = $registry->getFunctionDefinitions();
-print_r($allDefinitions);
+// Instantiate two WeatherOpenFunction instances.
+// For this example, imagine the WeatherOpenFunction can be configured to use different temperature units.
+// The first instance is set for Celsius (default), and the second for Fahrenheit.
+$weatherCelsius = new WeatherOpenFunction("celsius"); // Configured to return temperatures in Celsius.
+$weatherFahrenheit = new WeatherOpenFunction("fahrenheit"); // Imagine this instance is configured to return Fahrenheit.
 
-// Execute a sample function call (simulate an LLM request to "delivery_orderProduct")
-$response = $registry->executeFunctionCall('delivery_orderProduct', [
-    'productName' => 'Pizza',
-    'quantity'    => 2
-]);
+// Register the functions under different namespaces.
+// The registry automatically prefixes function names with the namespace (e.g., "celsius_getWeather", "fahrenheit_getWeather").
+$registry->registerOpenFunction('celsius', 'Weather functions using Celsius.', $weatherCelsius);
+$registry->registerOpenFunction('fahrenheit', 'Weather functions using Fahrenheit.', $weatherFahrenheit);
 
-// The response is a standard Response object
-if ($response->isError) {
-    echo "Error: " . print_r($response->toArray(), true);
-} else {
-    echo "Success: " . print_r($response->toArray(), true);
-}
-```
+// Retrieve all namespaced function definitions to pass to the OpenAI client.
+$toolDefinitions = $registry->getFunctionDefinitions();
 
-### Using OpenAI PHP SDK to Call a Function
-
-Suppose you have a conversation with a user, and you suspect that the user’s prompt will trigger a function call. With the OpenAI PHP SDK (or a similar library), you can provide function definitions and messages.
-
-Below is an example (pseudo-code) of how you might call the OpenAI Chat Completions endpoint and let it auto-call a function:
-
-```php
-use OpenAI;
-
-// 1. Prepare your messages
-$messageList = new MessageList();
-
-// Add a user message
-$messageList->addMessage(new UserMessage("I want to order 2 Burgers"));
-
-// 2. Convert messages to array
-$messagesArray = $messageList->toArray();
-
-// 3. Prepare the function definitions from your registry
-$functionDefinitions = $registry->getFunctionDefinitions();
-
-// 4. Call the Chat API
-$client = OpenAI::client('YOUR_OPENAI_API_KEY');
-
+// Use these tool definitions in the client call.
 $response = $client->chat()->create([
-    'model'         => 'gpt-4o',
-    'messages'      => $messagesArray,
-    'tools'         => $functionDefinitions, // Provide all your known function definitions
+    'model'    => 'gpt-4o',
+    'messages' => $conversationArray,
+    'tools'    => $toolDefinitions,
 ]);
 
-// 5. Parse the response
-// The model might either return text or a function call (tool call).
-if (isset($response->choices[0]->message->toolCalls)) {
-    foreach ($response->choices[0]->message->toolCalls as $toolCall) {
-        // Extract the function name (already namespaced) and arguments
-        $functionName = $toolCall->function->name;
-        $functionArgs = json_decode($toolCall->function->arguments, true);
+// Later, when the client calls a function, the registry will use the namespaced function name 
+// (e.g., "celsius_getWeather" or "fahrenheit_getWeather") to invoke the correct method.
+```
 
-        // 6. Execute the function via the registry
-        $toolResponse = $registry->executeFunctionCall($functionName, $functionArgs);
+In this example, the registry ensures that even though both WeatherOpenFunction instances share the same method names (like getWeather), they are uniquely identified by their namespaces (celsius and fahrenheit). This separation allows you to call the appropriate function based on the desired temperature unit without any naming collisions.
 
-        // 7. Return the tool's response back to the conversation (or handle it as you wish)
-        print_r($toolResponse->toArray());
+It can be a good idea to inform the LLM about the different namespaces and give a little more context. In order to do this, you might want to add a dedicated developer message to the message list that explains the namespaces. To achieve this dynamically, the concept of a **Message List Extension** is implemented. Extensions implement a specific interface and are invoked when the message list is built, giving you the opportunity to modify or extend the messages.
+
+#### Message List Extensions
+
+Sometimes it’s useful to add a message that explains context details to the LLM. For instance, you might want to inform the model about the namespaces registered by your tool. To achieve this dynamically, you can create an extension that implements the **MessageListExtensionInterface**. Once added to the message list, the extension is invoked automatically during the conversion process, allowing you to inject extra messages.
+
+For example, the **OpenFunctionRegistry** class implements this interface and in its **extend()** method it prepends a developer message that lists the namespaces:
+
+```php
+/**
+ * Extend the message list by prepending a developer message with namespace details.
+ *
+ * @param MessageList $messageList
+ * @return void
+ */
+public function extend(MessageList $messageList): void
+{
+    if (empty($this->registry)) {
+        return;
     }
-} else {
-    // Regular text response from the model
-    echo $response->choices[0]->message->content;
+
+    $devMessage = $this->getNamespacesDeveloperMessage();
+    $messageList->prependMessages([$devMessage]);
 }
 ```
 
-### Utilizing the Function Registry with OpenAI
-
-In the above example, we manually provided the function definitions. Another approach is to let the OpenFunctionRegistry automatically insert a developer message about the namespaces. You do this by adding the registry as a MessageList extension:
+To add an extension to your message list, simply use the addExtension() method on your MessageList instance. Here’s how you can register the OpenFunctionRegistry as an extension:
 
 ```php
+use AssistantEngine\OpenFunctions\Core\Models\Messages\MessageList;
+use AssistantEngine\OpenFunctions\Core\Services\OpenFunctionRegistry;
+
+// Instantiate your registry and register any open functions as needed.
+$registry = new OpenFunctionRegistry();
+// (Assume functions are registered here...)
+
+// Create a message list and add the registry as an extension.
 $messageList = new MessageList();
-$messageList->addExtension($registry); // <-- This will prepend a DeveloperMessage automatically
+$messageList->addExtension($registry);
 
-$messageList->addMessage(new UserMessage("What's the weather in Berlin for the next 3 days?"));
-
-// Now when you do $messageList->toArray(), 
-// it has a developer message listing the registered namespaces 
-// plus your user message.
-$messagesArray = $messageList->toArray();
-
-$functionDefinitions = $registry->getFunctionDefinitions();
-
-// Use $messagesArray and $functionDefinitions in an OpenAI chat call as before...
+// When converting to an array, the registry extension prepends the developer message.
+$conversationArray = $messageList->toArray();
 ```
 
-When the toArray() method is called, the registry’s extension will run and prepend a developer message enumerating the available tool namespaces. That helps the model know which functions exist and are available.
+### Function Calling
 
-### Working with Responses
+Implement all callable methods within your **OpenFunction** class. Each method should return a string, a text response, a binary response, or a list of responses. The callMethod in the abstract class ensures the output is consistently wrapped.
 
-All function calls return a Response object, which contains:
-- isError (boolean) indicating if the function call succeeded or failed.
-- content (an array of ResponseItem objects).
-
-A ResponseItem can be:
-- TextResponseItem: contains plain text.
-- BinaryResponseItem: contains base64 or binary data.
-
-**Example**
-
-If you call:
+For example, in WeatherOpenFunction:
 
 ```php
-$response = $registry->executeFunctionCall('delivery_listProducts', []);
+<?php
+use AssistantEngine\OpenFunctions\Core\Contracts\AbstractOpenFunction;
+use AssistantEngine\OpenFunctions\Core\Helpers\FunctionDefinition;
+use AssistantEngine\OpenFunctions\Core\Helpers\Parameter;
+use AssistantEngine\OpenFunctions\Core\Models\Responses\TextResponseItem;
+
+class WeatherOpenFunction extends AbstractOpenFunction
+{
+    /**
+     * Returns the current weather for the given city.
+     *
+     * @param string $cityName
+     * @return TextResponseItem
+     */
+    public function getWeather(string $cityName)
+    {
+        $weathers = ['sunny', 'rainy', 'cloudy', 'stormy', 'snowy', 'windy'];
+        $weather = $weathers[array_rand($weathers)];
+    
+        return new TextResponseItem("The weather in {$cityName} is {$weather}.");
+    }
+    
+    // ...
+}
+```
+
+To invoke the function:
+
+```php
+// Instantiate the WeatherOpenFunction.
+$weatherFunction = new WeatherOpenFunction();
+
+// Call the 'getWeather' method via callMethod.
+$response = $weatherFunction->callMethod('getWeather', ['cityName' => 'New York']);
+
+// Output the response as an array.
 print_r($response->toArray());
 ```
 
-You might get:
+and if you used the registry
 
 ```php
-Array
-(
-    [isError] => false
-    [content] => Array
-        (
-            [0] => Array
-                (
-                    [type] => text
-                    [text] => Available products: Pizza, Burger, Sushi.
-                )
-        )
-)
+<?php
+// Execute the function call using the registry.
+$response = $registry->executeFunctionCall('celsius_getWeather', ['cityName' => 'New York']);
+// Output the response as an array.
+print_r($response->toArray());
 ```
 
-## Example Open Functions
+so if you would use it within the llm loop it could look like something like this
 
-### DeliveryOpenFunction
+```php
+$response = $client->chat()->create([
+    'model'         => 'gpt-4o',
+    'messages'      => $conversationArray, 
+    'tools'         => $toolDefinitions,
+]);
 
-See [DeliveryOpenFunction.php](src/Examples/DeliveryOpenFunction.php) for a real-world example. It demonstrates how to:
-- Implement multiple methods (listProducts, orderProduct, etc.).
-- Return different text responses based on the function call.
-- Provide function definitions for each method using FunctionDefinition and Parameter.
+if (isset($response->choices[0]->message->toolCalls)) {
+    foreach ($response->choices[0]->message->toolCalls as $toolCall) {
+        $namespacedName = $toolCall['function']['name'] ?? null;
+        $argumentsJson = $toolCall['function']['arguments'] ?? '{}';
+    
+        $response = $registry->executeFunctionCall($namespacedName, json_decode($argumentsJson, true));
+    }
+}
+```
 
-### WeatherOpenFunction
+### Available Open Function Implementations
 
-See [WeatherOpenFunction.php](src/Examples/WeatherOpenFunction.php) for an example that:
-- Fetches (or simulates) current weather conditions.
-- Simulates multi-day forecasts.
+In addition to creating your own **OpenFunction**, there are several ready-to-use implementations available.
+Here’s a quick overview:
+
+- **[Notion](https://github.com/AssistantEngine/open-functions-notion)**: Connects to your Notion workspace and enables functionalities such as listing databases, retrieving pages, and managing content blocks.
+- **[GitHub](https://github.com/AssistantEngine/open-functions-github)**: Integrates with GitHub to allow repository operations like listing branches, reading files, and committing changes.
+- **[Bitbucket](https://github.com/AssistantEngine/open-functions-bitbucket)**: Provides an interface similar to GitHub’s, enabling you to interact with Bitbucket repositories to list files, read file contents, and commit modifications.
+- **[Trello](https://github.com/AssistantEngine/open-functions-trello)**: Enables interactions with Trello boards, lists, and cards, facilitating project management directly within your assistant.
+- **[Slack](https://github.com/AssistantEngine/open-functions-slack)**: Seamlessly connects your assistant to Slack and perform actions like listing channels, posting messages, replying to threads, adding reactions, and retrieving channel history and user profiles.
+- **[Jira Service Desk](https://github.com/AssistantEngine/open-functions-jira-service-desk)**: Integrates with Jira Service Desk to interact with service requests—enabling you to create, update, and manage requests (cards), list queues, add comments, transition statuses, and manage priorities.
+
+## More Repositories
+
+We’ve created more repositories to make AI integration even simpler and more powerful! Check them out:
+
+- **[Filament Assistant](https://github.com/AssistantEngine/filament-assistant)**: Add conversational AI capabilities directly into Laravel Filament.
+
+> We are a young startup aiming to make it easy for developers to add AI to their applications. We welcome feedback, questions, comments, and contributions. Feel free to contact us at [contact@assistant-engine.com](mailto:contact@assistant-engine.com).
+
+
+## Consultancy & Support
+
+Do you need assistance integrating Filament Assistant into your Laravel Filament application, or help setting it up?  
+We offer consultancy services to help you get the most out of our package, whether you’re just getting started or looking to optimize an existing setup.
+
+Reach out to us at [contact@assistant-engine.com](mailto:contact@assistant-engine.com).
 
 ## Contributing
 

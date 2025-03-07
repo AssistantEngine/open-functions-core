@@ -39,9 +39,9 @@ class BinaryResponseItem extends ResponseItem {
     /**
      * Constructor.
      *
-     * @param string      $filename      The URI of the resource.
+     * @param string $filename The URI of the resource.
+     * @param string $blob Optional base64 encoded binary data.
      * @param string|null $mimeType Optional MIME type.
-     * @param string|null $blob     Optional base64 encoded binary data.
      */
     public function __construct(string $filename, string $blob, ?string $mimeType = null) {
         parent::__construct(ResponseItem::TYPE_BINARY);

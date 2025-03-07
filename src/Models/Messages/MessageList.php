@@ -16,6 +16,11 @@ class MessageList
      */
     protected $extensions = [];
 
+    public function __construct(array $messages)
+    {
+        $this->messages = $messages;
+    }
+
     /**
      * Add messages to the list.
      *
@@ -63,6 +68,14 @@ class MessageList
     public function addExtension(MessageListExtensionInterface $extension): self
     {
         $this->extensions[] = $extension;
+        return $this;
+    }
+
+    public function addExtensions(array $extensions): self
+    {
+        foreach ($extensions as $extension) {
+            $this->addExtension($extension);
+        }
         return $this;
     }
 

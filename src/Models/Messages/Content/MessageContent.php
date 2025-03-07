@@ -50,7 +50,7 @@ class MessageContent
      *
      * @return string|array|null
      */
-    public function toArray()
+    public function resolve()
     {
         if (empty($this->parts)) {
             return null;

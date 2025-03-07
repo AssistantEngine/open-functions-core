@@ -6,10 +6,11 @@ use AssistantEngine\OpenFunctions\Core\Models\Messages\Content\MessageContent;
 
 /**
  * Tool Message:
+ *
  * Messages sent by a tool in response to a tool call.
  * According to the documentation, tool messages must have:
  * - role = tool
- * - content (string or array)
+ * - content (string)
  * - tool_call_id (string) - the tool call ID this message is responding to.
  */
 class ToolMessage extends Message
@@ -17,9 +18,9 @@ class ToolMessage extends Message
     /**
      * @var string The ID of the tool call this message responds to.
      */
-    protected $toolCallId;
+    protected string $toolCallId;
 
-    public function __construct($content, string $toolCallId)
+    public function __construct(string $content, string $toolCallId)
     {
         $this->role = 'tool';
         $this->content = $content;
@@ -53,7 +54,7 @@ class ToolMessage extends Message
         return [
             'role' => $this->role,
             'tool_call_id' => $this->toolCallId,
-            'content' => ($this->content instanceof MessageContent) ? $this->content->toArray() : $this->content,
+            'content' => $this->content,
         ];
     }
 }

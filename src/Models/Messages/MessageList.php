@@ -16,7 +16,7 @@ class MessageList
      */
     protected $extensions = [];
 
-    public function __construct(array $messages)
+    public function __construct(array $messages = [])
     {
         $this->messages = $messages;
     }

@@ -304,6 +304,7 @@ if (isset($response->choices[0]->message->toolCalls)) {
 In addition to creating your own **OpenFunction**, there are several ready-to-use implementations available.
 Here’s a quick overview:
 
+- **[Memory](https://github.com/AssistantEngine/open-functions-memory)**:  Provides a standardized API for storing, updating, retrieving, and removing conversational memories.
 - **[Notion](https://github.com/AssistantEngine/open-functions-notion)**: Connects to your Notion workspace and enables functionalities such as listing databases, retrieving pages, and managing content blocks.
 - **[GitHub](https://github.com/AssistantEngine/open-functions-github)**: Integrates with GitHub to allow repository operations like listing branches, reading files, and committing changes.
 - **[Bitbucket](https://github.com/AssistantEngine/open-functions-bitbucket)**: Provides an interface similar to GitHub’s, enabling you to interact with Bitbucket repositories to list files, read file contents, and commit modifications.

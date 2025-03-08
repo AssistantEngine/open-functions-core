@@ -123,7 +123,6 @@ Once you have implemented your open functions (such as the WeatherOpenFunction),
 <?php
 use AssistantEngine\OpenFunctions\Core\Examples\WeatherOpenFunction;
 
-// Instantiate the WeatherOpenFunction.
 $weatherFunction = new WeatherOpenFunction();
 
 // Generate the function definitions. This creates a schema for functions like "getWeather" and "getForecast".

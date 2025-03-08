@@ -60,6 +60,11 @@ class OpenFunctionRegistry extends AbstractOpenFunction implements MessageListEx
      */
     public static string $namespaceIntro = 'Function names are prefixed with a tool group name and underscore. You need to active a function before using. Registered tool groups:';
 
+    public function __construct(bool $metaMode = false)
+    {
+        $this->metaEnabled = $metaMode;
+    }
+
     /**
      * Register a single open function under a given namespace.
      */
@@ -153,20 +158,6 @@ class OpenFunctionRegistry extends AbstractOpenFunction implements MessageListEx
         $actualMethod = $entry['method'];
 
         return $openFunction->callMethod($actualMethod, $arguments);
-    }
-
-    public function enableMetaMode(): self
-    {
-        $this->metaEnabled = true;
-
-        return $this;
-    }
-
-    public function disableMetaMode(): self
-    {
-        $this->metaEnabled = false;
-
-        return $this;
     }
 
     //---------------------------------------------------------------------

@@ -35,17 +35,15 @@ abstract class Message
         ];
 
         if ($this->content) {
-            $contentArray = $this->content->toArray();
-            if ($contentArray !== null) {
-                $message['content'] = $contentArray;
+            $contentParts = $this->content->resolve();
+            if ($contentParts !== null) {
+                $message['content'] = $contentParts;
             }
         }
 
         if (!empty($this->name)) {
             $message['name'] = $this->name;
         }
-
-        // Subclasses can add more fields here by overriding this method or by adding them after calling parent::toArray().
 
         return $message;
     }

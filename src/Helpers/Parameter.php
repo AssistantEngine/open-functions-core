@@ -11,7 +11,7 @@ namespace AssistantEngine\OpenFunctions\Core\Helpers;
  * Usage example:
  * $param = Parameter::string('name')->description('A user name')->required();
  * $paramArray = $param->toArray();
- * 
+ *
  * Allows defining complex parameters using fluent methods for tool integrations.
  *
  * Properties:
@@ -225,7 +225,11 @@ class Parameter
                 $param['items'] = $this->items;
             }
 
-            if ($this->type === 'object' || (is_array($this->type) && in_array('object', $this->type))) {
+            if ($this->nullable) {
+                $param['nullable'] = true;
+            }
+
+            if ($this->type === 'object') {
                 $param['properties'] = $this->properties;
                 $param['required'] = array_values(array_filter(
                     $this->requiredProperties ?? [],
@@ -260,10 +264,6 @@ class Parameter
 
     private function getType()
     {
-        if ($this->nullable) {
-            return [$this->type, 'null'];
-        }
-
         return $this->type;
     }
 

@@ -5,8 +5,8 @@ This library provides a set of primitives that simplify LLM calling. It offers a
 ## Key Features
 
 - ✅ **Structured Conversation Management** - Offers robust primitives for messages and message lists.
-- ✅ **Unified LLM Tool Interface** - OpenFunctions provide a standardized API for defining and invoking tools within LLM-powered applications.
-- ✅ **Function Registry & Meta-mod** - Manages multiple OpenFunctions and namespaces seamlessly, with support for dynamic activation and deactivation to keep tool definitions clear and concise.
+- ✅ **Unified LLM Tool Interface** - **OpenFunctions** provide a standardized API for defining and invoking tools within LLM-powered applications.
+- ✅ **Function Registry & Meta-mod** - Manages multiple **OpenFunctions**  and namespaces seamlessly, with support for dynamic activation and deactivation to keep tool definitions clear and concise.
 - ✅ **Extensible Architecture** - Designed to be highly customizable, allowing you to extend or replace components with your own implementations.
 - ✅ **Developer-Friendly Abstractions** - Reduces boilerplate code through intuitive helper classes for defining functions, parameters, and responses.
 - ✅ **Pre-built Integrations** - Includes ready-to-use implementations for popular platforms such as Slack, GitHub, Bitbucket, Trello, and Jira Service Desk.

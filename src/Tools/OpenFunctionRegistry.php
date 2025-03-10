@@ -163,64 +163,136 @@ class OpenFunctionRegistry extends AbstractOpenFunction
     }
 
     /**
-     * Returns the meta method definition for activateFunction.
-     *
-     * The enum of valid function names is built from those functions that have not yet been activated.
+     * Build meta method definitions for:
+     * - activateFunction: activates multiple functions at once.
+     * - deactivateFunction: deactivates multiple functions at once.
+     * - listFunctions: returns a list of all functions grouped by namespace.
      */
     protected function getMetaMethodDefinitions(): array
     {
         $metaDefs = [];
 
-        // Allow only functions that are not already activated.
+        // Activate functions meta method
         $availableFunctions = array_diff(array_keys($this->registry), $this->activeFunctions);
-
-        $def = new FunctionDefinition(
+        $activateDef = new FunctionDefinition(
             'activateFunction',
-            'Activate a function from the registry. Multiple functions can be activated, but duplicates are ignored.'
+            'Activate functions from the registry. Multiple functions can be activated at once. Duplicates are ignored.'
         );
-        $def->addParameter(
-            Parameter::string('functionName')->required()
-                ->enum(array_values($availableFunctions))
-                ->description("Choose one of the valid function names to active them.")
+        $activateParam = Parameter::array('functionNames')
+            ->required()
+            ->description("An array of valid function names to activate.");
+        $activateParam->setItems(Parameter::string(null)->enum(array_values($availableFunctions)));
+        $activateDef->addParameter($activateParam);
+        $metaDefs[] = $activateDef->createFunctionDescription();
+
+        // Deactivate functions meta method
+        $deactivateDef = new FunctionDefinition(
+            'deactivateFunction',
+            'Deactivate functions from the registry. Multiple functions can be deactivated at once.'
         );
-        $metaDefs[] = $def->createFunctionDescription();
+        $deactivateParam = Parameter::array('functionNames')
+            ->required()
+            ->description("An array of valid function names to deactivate.");
+        $deactivateParam->setItems(Parameter::string(null)->enum($this->activeFunctions));
+        $deactivateDef->addParameter($deactivateParam);
+        $metaDefs[] = $deactivateDef->createFunctionDescription();
+
+        // List functions meta method
+        $listDef = new FunctionDefinition(
+            'listFunctions',
+            'List all available functions grouped by namespace, including function names, descriptions, and namespace descriptions.'
+        );
+        $metaDefs[] = $listDef->createFunctionDescription();
 
         return $metaDefs;
     }
 
-
-    //---------------------------------------------------------------------
-    // "Meta" methods (only relevant if metaEnabled = true)
-    //---------------------------------------------------------------------
-
     /**
-     * Activate a function by its namespaced name.
-     * Multiple functions can be activated, but duplicate activations are prevented.
+     * Activate multiple functions by their namespaced names.
      *
-     * @param string $functionName The namespaced function name to activate.
-     * @return TextResponseItem A response message indicating the activation result.
+     * @param array $functionNames An array of function names to activate.
+     * @return TextResponseItem A response message with the activation result.
      */
-    public function activateFunction(string $functionName): TextResponseItem
+    public function activateFunction(array $functionNames): TextResponseItem
     {
-        if (!isset($this->registry[$functionName])) {
-            return new TextResponseItem("No such function: '{$functionName}'.");
+        $messages = [];
+        foreach ($functionNames as $functionName) {
+            if (!isset($this->registry[$functionName])) {
+                $messages[] = "No such function: '{$functionName}'.";
+            } elseif (in_array($functionName, $this->activeFunctions, true)) {
+                $messages[] = "Function '{$functionName}' is already activated.";
+            } else {
+                $this->activeFunctions[] = $functionName;
+                $messages[] = "Function '{$functionName}' activated.";
+            }
         }
-
-        if (in_array($functionName, $this->activeFunctions, true)) {
-            return new TextResponseItem("Function '{$functionName}' is already activated.");
-        }
-
-        $this->activeFunctions[] = $functionName;
-        return new TextResponseItem("Function '{$functionName}' has been activated. Activated functions: " . implode(', ', $this->activeFunctions));
+        $messages[] = "Activated functions: " . implode(', ', $this->activeFunctions);
+        return new TextResponseItem(implode(' ', $messages));
     }
 
     /**
-     * Handles the meta calls OR dispatches them to the underlying open function objects.
+     * Deactivate multiple functions by their namespaced names.
+     *
+     * @param array $functionNames An array of function names to deactivate.
+     * @return TextResponseItem A response message with the deactivation result.
+     */
+    public function deactivateFunction(array $functionNames): TextResponseItem
+    {
+        $messages = [];
+        foreach ($functionNames as $functionName) {
+            if (!in_array($functionName, $this->activeFunctions, true)) {
+                $messages[] = "Function '{$functionName}' is not active.";
+            } else {
+                $index = array_search($functionName, $this->activeFunctions, true);
+                if ($index !== false) {
+                    array_splice($this->activeFunctions, $index, 1);
+                }
+                $messages[] = "Function '{$functionName}' deactivated.";
+            }
+        }
+        $messages[] = "Activated functions: " . implode(', ', $this->activeFunctions);
+        return new TextResponseItem(implode(' ', $messages));
+    }
+
+    /**
+     * List all available functions grouped by their namespace.
+     *
+     * @return TextResponseItem A response message containing the grouped function list.
+     */
+    public function listFunctions(): TextResponseItem
+    {
+        $grouped = [];
+        foreach ($this->registry as $namespacedName => $entry) {
+            $parts = explode(self::NAMESPACE_SEPARATOR, $namespacedName, 2);
+            $namespace = $parts[0];
+            if (!isset($grouped[$namespace])) {
+                $grouped[$namespace] = [
+                    'description' => $this->namespaces[$namespace]['description'] ?? '',
+                    'functions' => []
+                ];
+            }
+            $grouped[$namespace]['functions'][] = [
+                'name' => $namespacedName,
+                'description' => $entry['definition']['function']['description']
+            ];
+        }
+
+        $lines = [];
+        foreach ($grouped as $ns => $data) {
+            $lines[] = "Namespace '$ns': " . $data['description'];
+            foreach ($data['functions'] as $func) {
+                $lines[] = "  - {$func['name']}: {$func['description']}";
+            }
+        }
+        return new TextResponseItem(implode("\n", $lines));
+    }
+
+    /**
+     * Handles meta calls or dispatches them to the underlying open function objects.
      */
     public function callMethod(string $methodName, array $arguments = []): Response
     {
-        // Only allow the meta method "activateFunction" in meta mode.
-        $allowedMetaMethods = ['activateFunction'];
+        $allowedMetaMethods = ['activateFunction', 'deactivateFunction', 'listFunctions'];
 
         // If meta mode is enabled and the method is one of the meta methods...
         if ($this->metaEnabled && in_array($methodName, $allowedMetaMethods, true)) {
@@ -235,7 +307,7 @@ class OpenFunctionRegistry extends AbstractOpenFunction
             );
         }
 
-        $entry        = $this->registry[$methodName];
+        $entry = $this->registry[$methodName];
         $openFunction = $entry['openFunction'];
         $actualMethod = $entry['method'];
 

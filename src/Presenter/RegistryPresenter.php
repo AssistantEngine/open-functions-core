@@ -21,8 +21,8 @@ class RegistryPresenter implements MessageListExtensionInterface
      *
      * @var string
      */
-    public static string $namespaceIntro = 'Function names are prefixed with a namespace. Registered tool groups:';
-    public static string $namespaceIntroMeta = 'Function names are prefixed with a namespace. You need to activate functions before using. Registered tool groups:';
+    public static string $namespaceIntro = 'Function names are prefixed with a namespace. Dont prefix functions yourself use the functions names you receive. Registered namespaces:';
+    public static string $namespaceIntroMeta = 'Function names are prefixed with a namespace. Dont prefix functions yourself use the functions names you receive. You need to activate functions before using. Registered namespaces:';
 
     /**
      * Constructor.

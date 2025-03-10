@@ -252,6 +252,8 @@ $registry->registerOpenFunction(
 
 In meta-mode, only three core registry functions are initially registered to the LLM. These functions give the LLM the ability to activate and deactivate additional methods on the fly. This approach keeps the number of tool definitions sent to the LLM both limited and understandable.
 
+![Meta Mode](media/meta-mode.png)
+
 The three registry functions provided in meta-mode are:
 
 | **Method**       | **Description**                                                                                                 | **Parameters**                                                                                  |

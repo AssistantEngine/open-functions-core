@@ -1,3 +1,9 @@
+<div align="center">
+
+![Preview](media/preview.png)
+
+</div>
+
 # OpenFunctions Core
 
 This library provides a set of primitives that simplify LLM calling. It offers an easy way to define messages and message lists, create tool definitions, and execute tool calls. By abstracting these core functionalities, **OpenFunctions Core** helps you reduce boilerplate code and quickly integrate advanced tool-calling capabilities into your LLM-powered applications.

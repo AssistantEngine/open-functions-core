@@ -250,7 +250,7 @@ $registry->registerOpenFunction(
 );
 ```
 
-In meta-mode, only three core registry functions are initially registered to the LLM. These functions give the LLM the ability to activate and deactivate additional methods on the fly. This approach keeps the number of tool definitions sent to the LLM both limited and understandable.
+In **meta-mode**, only three core registry functions are initially registered to the LLM. These functions give the LLM the ability to activate and deactivate additional methods on the fly. This approach keeps the number of tool definitions sent to the LLM both limited and understandable. The following image demonstrates an activated meta-mode within the **[Filament Assistant Plugin](https://github.com/AssistantEngine/filament-assistant)**:
 
 ![Meta Mode](media/meta-mode.png)
 

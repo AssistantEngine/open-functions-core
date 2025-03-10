@@ -377,7 +377,7 @@ if (isset($response->choices[0]->message->toolCalls)) {
         $namespacedName = $toolCall['function']['name'] ?? null;
         $argumentsJson = $toolCall['function']['arguments'] ?? '{}';
     
-        $response = $registry->executeFunctionCall($namespacedName, json_decode($argumentsJson, true));
+        $response = $registry->callMethod($namespacedName, json_decode($argumentsJson, true));
     }
 }
 ```

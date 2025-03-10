@@ -1,6 +1,6 @@
 <?php
 
-namespace AssistantEngine\OpenFunctions\Core\Services;
+namespace AssistantEngine\OpenFunctions\Core\Tools;
 
 use AssistantEngine\OpenFunctions\Core\Contracts\AbstractOpenFunction;
 use AssistantEngine\OpenFunctions\Core\Contracts\MessageListExtensionInterface;
@@ -18,7 +18,7 @@ use Exception;
  *  - an AbstractOpenFunction providing "meta" methods to activate or deactivate meta mode,
  *    list namespaces, pick an active namespace, etc.
  */
-class OpenFunctionRegistry extends AbstractOpenFunction implements MessageListExtensionInterface
+class OpenFunctionRegistry extends AbstractOpenFunction
 {
     const NAMESPACE_SEPARATOR = '_';
 
@@ -55,14 +55,17 @@ class OpenFunctionRegistry extends AbstractOpenFunction implements MessageListEx
      */
     protected array $namespaces = [];
 
-    /**
-     * A short message to show when listing namespaces in the developer message.
-     */
-    public static string $namespaceIntro = 'Function names are prefixed with a tool group name and underscore. You need to active a function before using. Registered tool groups:';
-
-    public function __construct(bool $metaMode = false)
+    public function __construct(bool $metaMode = false, ?string $registryNamespaceDescriptions = null)
     {
         $this->metaEnabled = $metaMode;
+
+        if ($this->metaEnabled) {
+            if (!$registryNamespaceDescriptions) {
+                throw new Exception('please provide a namespace description if you want to activate meta mode');
+            }
+
+            $this->registerOpenFunction('registry', $registryNamespaceDescriptions, $this);
+        }
     }
 
     /**
@@ -74,6 +77,10 @@ class OpenFunctionRegistry extends AbstractOpenFunction implements MessageListEx
         AbstractOpenFunction $openFunction
     ): void {
         $definitions = $openFunction->generateFunctionDefinitions();
+
+        if (isset($this->namespaces[$namespaceName])) {
+            throw new Exception('namespace "' . $namespaceName . '" is already registered');
+        }
 
         if (isset($definitions['function'])) {
             $definitions = [$definitions];
@@ -103,9 +110,20 @@ class OpenFunctionRegistry extends AbstractOpenFunction implements MessageListEx
         }
     }
 
-    public function getFunctionDefinitions(): array
+    /**
+     * @return array
+     */
+    public function getNamespaces(): array
     {
-        return $this->generateFunctionDefinitions();
+        return $this->namespaces;
+    }
+
+    /**
+     * @return bool
+     */
+    public function metaModeEnabled(): bool
+    {
+        return $this->metaEnabled;
     }
 
     /**
@@ -133,60 +151,16 @@ class OpenFunctionRegistry extends AbstractOpenFunction implements MessageListEx
     }
 
     /**
-     * Handles the meta calls OR dispatches them to the underlying open function objects.
+     * Return all definitions from every namespace in the registry.
      */
-    public function executeFunctionCall(string $methodName, array $arguments = []): Response
+    protected function getAllRegistryDefinitions(): array
     {
-        // Only allow the meta method "activateFunction" in meta mode.
-        $allowedMetaMethods = ['activateFunction'];
-
-        // If meta mode is enabled and the method is one of the meta methods...
-        if ($this->metaEnabled && in_array($methodName, $allowedMetaMethods, true)) {
-            return parent::callMethod($methodName, $arguments);
+        $results = [];
+        foreach ($this->registry as $entry) {
+            $results[] = $entry['definition'];
         }
-
-        // Otherwise, attempt to look up the namespaced function.
-        if (!isset($this->registry[$methodName])) {
-            return new Response(
-                Response::STATUS_ERROR,
-                [new TextResponseItem("No function registered under '{$methodName}'.")]
-            );
-        }
-
-        $entry       = $this->registry[$methodName];
-        $openFunction = $entry['openFunction'];
-        $actualMethod = $entry['method'];
-
-        return $openFunction->callMethod($actualMethod, $arguments);
+        return $results;
     }
-
-    //---------------------------------------------------------------------
-    // "Meta" methods (only relevant if metaEnabled = true)
-    //---------------------------------------------------------------------
-
-    /**
-     * Activate a function by its namespaced name.
-     * Multiple functions can be activated, but duplicate activations are prevented.
-     *
-     * @param string $functionName The namespaced function name to activate.
-     * @return TextResponseItem A response message indicating the activation result.
-     */
-    public function activateFunction(string $functionName): TextResponseItem
-    {
-        if (!isset($this->registry[$functionName])) {
-            return new TextResponseItem("No such function: '{$functionName}'.");
-        }
-
-        if (in_array($functionName, $this->activeFunctions, true)) {
-            return new TextResponseItem("Function '{$functionName}' is already activated.");
-        }
-
-        $this->activeFunctions[] = $functionName;
-        return new TextResponseItem("Function '{$functionName}' has been activated. Activated functions: " . implode(', ', $this->activeFunctions));
-    }
-    //---------------------------------------------------------------------
-    // Utility / Private Helpers
-    //---------------------------------------------------------------------
 
     /**
      * Returns the meta method definition for activateFunction.
@@ -213,57 +187,58 @@ class OpenFunctionRegistry extends AbstractOpenFunction implements MessageListEx
 
         return $metaDefs;
     }
-    /**
-     * Return all definitions from every namespace in the registry.
-     */
-    protected function getAllRegistryDefinitions(): array
-    {
-        $results = [];
-        foreach ($this->registry as $entry) {
-            $results[] = $entry['definition'];
-        }
-        return $results;
-    }
-
-    /**
-     * Return only the definitions from a particular namespace.
-     */
-    protected function getNamespaceDefinitions(string $namespaceName): array
-    {
-        $results = [];
-        foreach ($this->registry as $namespacedName => $entry) {
-            // The first part is the namespace
-            $parts = explode(self::NAMESPACE_SEPARATOR, $namespacedName, 2);
-            if ($parts[0] === $namespaceName) {
-                $results[] = $entry['definition'];
-            }
-        }
-        return $results;
-    }
 
 
     //---------------------------------------------------------------------
-    // The extension part: prepend a DeveloperMessage listing namespaces
+    // "Meta" methods (only relevant if metaEnabled = true)
     //---------------------------------------------------------------------
 
-    public function extend(MessageList $messageList): void
+    /**
+     * Activate a function by its namespaced name.
+     * Multiple functions can be activated, but duplicate activations are prevented.
+     *
+     * @param string $functionName The namespaced function name to activate.
+     * @return TextResponseItem A response message indicating the activation result.
+     */
+    public function activateFunction(string $functionName): TextResponseItem
     {
-        // If you want, you can show a developer message listing known namespaces each time
-        if (empty($this->registry)) {
-            return;
+        if (!isset($this->registry[$functionName])) {
+            return new TextResponseItem("No such function: '{$functionName}'.");
         }
-        $messageList->prependMessages([$this->getNamespacesDeveloperMessage()]);
+
+        if (in_array($functionName, $this->activeFunctions, true)) {
+            return new TextResponseItem("Function '{$functionName}' is already activated.");
+        }
+
+        $this->activeFunctions[] = $functionName;
+        return new TextResponseItem("Function '{$functionName}' has been activated. Activated functions: " . implode(', ', $this->activeFunctions));
     }
 
     /**
-     * Create a developer message describing the namespaces.
+     * Handles the meta calls OR dispatches them to the underlying open function objects.
      */
-    public function getNamespacesDeveloperMessage(): DeveloperMessage
+    public function callMethod(string $methodName, array $arguments = []): Response
     {
-        $lines   = [self::$namespaceIntro];
-        foreach ($this->namespaces as $nsName => $nsInfo) {
-            $lines[] = "- {$nsName}: {$nsInfo['description']}";
+        // Only allow the meta method "activateFunction" in meta mode.
+        $allowedMetaMethods = ['activateFunction'];
+
+        // If meta mode is enabled and the method is one of the meta methods...
+        if ($this->metaEnabled && in_array($methodName, $allowedMetaMethods, true)) {
+            return parent::callMethod($methodName, $arguments);
         }
-        return new DeveloperMessage(implode("\n", $lines));
+
+        // Otherwise, attempt to look up the namespaced function.
+        if (!isset($this->registry[$methodName])) {
+            return new Response(
+                Response::STATUS_ERROR,
+                [new TextResponseItem("No function registered under '{$methodName}'.")]
+            );
+        }
+
+        $entry        = $this->registry[$methodName];
+        $openFunction = $entry['openFunction'];
+        $actualMethod = $entry['method'];
+
+        return $openFunction->callMethod($actualMethod, $arguments);
     }
 }

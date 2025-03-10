@@ -148,7 +148,7 @@ For example, suppose you want one WeatherOpenFunction instance to operate in Cel
 ```php
 <?php
 use AssistantEngine\OpenFunctions\Core\Examples\WeatherOpenFunction;
-use AssistantEngine\OpenFunctions\Core\Services\OpenFunctionRegistry;
+use AssistantEngine\OpenFunctions\Core\Tools\OpenFunctionRegistry;
 
 // Create an instance of the registry.
 $registry = new OpenFunctionRegistry();
@@ -210,7 +210,7 @@ To add an extension to your message list, simply use the addExtension() method o
 
 ```php
 use AssistantEngine\OpenFunctions\Core\Models\Messages\MessageList;
-use AssistantEngine\OpenFunctions\Core\Services\OpenFunctionRegistry;
+use AssistantEngine\OpenFunctions\Core\Tools\OpenFunctionRegistry;
 
 // Instantiate your registry and register any open functions as needed.
 $registry = new OpenFunctionRegistry();

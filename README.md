@@ -141,7 +141,7 @@ $response = $client->chat()->create([
 
 #### Open Function Registry
 
-In some scenarios, you may want to use the same **OpenFunction** more than once with different configurations, or you might have different **OpenFunctions** that define methods with the same name. To handle these cases, the library provides an **OpenFunction Registry**. This registry allows you to register each function under a unique namespace, ensuring that even if functions share the same underlying method name, they remain distinct.
+In some scenarios, you may want to use the same **OpenFunction** more than once with different configurations, or you might have different **OpenFunctions** that define methods with the same name. To handle these cases, the library provides an **OpenFunction Registry**, which itself is also an **OpenFunction**. This registry allows you to register each function under a unique namespace, ensuring that even if functions share the same underlying method name, they remain distinct.
 
 For example, suppose you want one WeatherOpenFunction instance to operate in Celsius (the default) and another in Fahrenheit. You could register them as follows:
 
@@ -165,7 +165,7 @@ $registry->registerOpenFunction('celsius', 'Weather functions using Celsius.', $
 $registry->registerOpenFunction('fahrenheit', 'Weather functions using Fahrenheit.', $weatherFahrenheit);
 
 // Retrieve all namespaced function definitions to pass to the OpenAI client.
-$toolDefinitions = $registry->getFunctionDefinitions();
+$toolDefinitions = $registry->generateFunctionDefinitions();
 
 // Use these tool definitions in the client call.
 $response = $client->chat()->create([
@@ -180,13 +180,82 @@ $response = $client->chat()->create([
 
 In this example, the registry ensures that even though both WeatherOpenFunction instances share the same method names (like getWeather), they are uniquely identified by their namespaces (celsius and fahrenheit). This separation allows you to call the appropriate function based on the desired temperature unit without any naming collisions.
 
+##### Meta Mode
+
+The above example ensures that even if multiple functions are registered under similar method names, each one is uniquely namespaced and easily distinguishable. In some scenarios, however, the total number of methods you want to provide to the LLM may exceed the maximum number it can ingest in a single call. To address this, the **OpenFunction Registry** offers a meta-mode.
+
+```php
+use AssistantEngine\OpenFunctions\Core\Examples\DeliveryOpenFunction;
+use AssistantEngine\OpenFunctions\Core\Tools\OpenFunctionRegistry;
+
+$registry = new OpenFunctionRegistry(true, 'This is the registry where you can control active functions');
+
+$burger = new DeliveryOpenFunction([
+    'Classic Burger',
+    'Cheese Burger',
+    'Bacon Burger',
+    'Veggie Burger',
+    'Double Burger'
+]);
+
+$pizza = new DeliveryOpenFunction([
+    'Margherita',
+    'Pepperoni',
+    'Hawaiian',
+    'Veggie',
+    'BBQ Chicken',
+    'Meat Lovers'
+]);
+
+$sushi = new DeliveryOpenFunction([
+    'California Roll',
+    'Spicy Tuna Roll',
+    'Salmon Nigiri',
+    'Eel Avocado Roll',
+    'Rainbow Roll',
+    'Vegetable Roll'
+]);
+
+$memoryFunc = new MemoryOpenFunction($driver);
+
+$registry->registerOpenFunction(
+    'burger',
+    'This is a nice burger place.',
+    $burger
+);
+
+$registry->registerOpenFunction(
+    'pizza',
+    'This is a nice pizza place',
+    $pizza
+);
+
+$registry->registerOpenFunction(
+    'sushi',
+    'This is a nice sushi place',
+    $sushi
+);
+```
+
+In meta-mode, only three core registry functions are initially registered to the LLM. These functions give the LLM the ability to activate and deactivate additional methods on the fly. This approach keeps the number of tool definitions sent to the LLM both limited and understandable.
+
+The three registry functions provided in meta-mode are:
+
+| **Method**       | **Description**                                                                                                 | **Parameters**                                                                                  |
+|------------------|-----------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| **listFunctions**    | Lists all available functions grouped by namespace, including their names, descriptions, and namespace details. | None                                                                                            |
+| **activateFunction** | Activates one or more functions from the registry. Duplicate activations are ignored.                           | **functionNames**: *array of string* (required) An array of valid function names to activate.   |
+| **deactivateFunction** | Deactivates one or more functions from the registry.                                                            | **functionNames**: *array of string* (required) An array of valid function names to deactivate. |
+
+##### Registry Presenter
+
 It can be a good idea to inform the LLM about the different namespaces and give a little more context. In order to do this, you might want to add a dedicated developer message to the message list that explains the namespaces. To achieve this dynamically, the concept of a **Message List Extension** is implemented. Extensions implement a specific interface and are invoked when the message list is built, giving you the opportunity to modify or extend the messages.
 
 #### Message List Extensions
 
 Sometimes it’s useful to add a message that explains context details to the LLM. For instance, you might want to inform the model about the namespaces registered by your tool. To achieve this dynamically, you can create an extension that implements the **MessageListExtensionInterface**. Once added to the message list, the extension is invoked automatically during the conversion process, allowing you to inject extra messages.
 
-For example, the **OpenFunctionRegistry** class implements this interface and in its **extend()** method it prepends a developer message that lists the namespaces:
+For example, the **RegistryPresenter** class implements this interface and in its **extend()** method it prepends a developer message that lists the namespaces:
 
 ```php
 /**
@@ -197,20 +266,19 @@ For example, the **OpenFunctionRegistry** class implements this interface and in
  */
 public function extend(MessageList $messageList): void
 {
-    if (empty($this->registry)) {
+    if (empty($this->registry->getNamespaces())) {
         return;
     }
-
-    $devMessage = $this->getNamespacesDeveloperMessage();
-    $messageList->prependMessages([$devMessage]);
+    $messageList->prependMessages([$this->getNamespacesDeveloperMessage()]);
 }
 ```
 
-To add an extension to your message list, simply use the addExtension() method on your MessageList instance. Here’s how you can register the OpenFunctionRegistry as an extension:
+To add an extension to your message list, simply use the addExtension() method on your MessageList instance. Here’s how you can register the **RegistryPresenter** as an extension:
 
 ```php
 use AssistantEngine\OpenFunctions\Core\Models\Messages\MessageList;
 use AssistantEngine\OpenFunctions\Core\Tools\OpenFunctionRegistry;
+use AssistantEngine\OpenFunctions\Core\Presenter\RegistryPresenter;
 
 // Instantiate your registry and register any open functions as needed.
 $registry = new OpenFunctionRegistry();
@@ -218,7 +286,7 @@ $registry = new OpenFunctionRegistry();
 
 // Create a message list and add the registry as an extension.
 $messageList = new MessageList();
-$messageList->addExtension($registry);
+$messageList->addExtension(new RegistryPresenter($registry),);
 
 // When converting to an array, the registry extension prepends the developer message.
 $conversationArray = $messageList->toArray();
@@ -275,7 +343,7 @@ and if you used the registry
 ```php
 <?php
 // Execute the function call using the registry.
-$response = $registry->executeFunctionCall('celsius_getWeather', ['cityName' => 'New York']);
+$response = $registry->callMethod('celsius_getWeather', ['cityName' => 'New York']);
 // Output the response as an array.
 print_r($response->toArray());
 ```

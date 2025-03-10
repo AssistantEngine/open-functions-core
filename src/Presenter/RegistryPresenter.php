@@ -21,8 +21,8 @@ class RegistryPresenter implements MessageListExtensionInterface
      *
      * @var string
      */
-    public static string $namespaceIntro = 'Function names are prefixed with a namespace. Dont prefix functions yourself use the functions names you receive. Registered namespaces:';
-    public static string $namespaceIntroMeta = 'Function names are prefixed with a namespace. Dont prefix functions yourself use the functions names you receive. You need to activate functions before using. Registered namespaces:';
+    public static string $namespaceIntro = 'Function are grouped by a prefix. Registered Groups are:';
+    public static string $namespaceIntroMeta = 'Function are grouped by a prefix. You need to activate functions before using them. The following functions are available:';
 
     /**
      * Constructor.
@@ -44,7 +44,7 @@ class RegistryPresenter implements MessageListExtensionInterface
      */
     public function extend(MessageList $messageList): void
     {
-        if (empty($this->namespaces)) {
+        if (empty($this->registry->getNamespaces())) {
             return;
         }
         $messageList->prependMessages([$this->getNamespacesDeveloperMessage()]);
@@ -59,13 +59,17 @@ class RegistryPresenter implements MessageListExtensionInterface
     {
         if ($this->registry->metaModeEnabled()) {
             $lines = [self::$namespaceIntroMeta];
+            $lines[] = json_encode($this->registry->listFunctions()->toArray());
+
         } else {
             $lines = [self::$namespaceIntro];
+
+            foreach ($this->registry->getNamespaces() as $nsName => $nsInfo) {
+                $lines[] = "- {$nsName}: {$nsInfo['description']}";
+            }
         }
 
-        foreach ($this->registry->getNamespaces() as $nsName => $nsInfo) {
-            $lines[] = "- {$nsName}: {$nsInfo['description']}";
-        }
+
         return new DeveloperMessage(implode("\n", $lines));
     }
 }

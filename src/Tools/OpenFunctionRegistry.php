@@ -138,9 +138,10 @@ class OpenFunctionRegistry extends AbstractOpenFunction
             return $this->getAllRegistryDefinitions();
         }
 
-        $activeDefs = $this->getPrefixedAllowedMetaMethods();
+        $activeDefs = [];
+        $activeFunctions = array_merge($this->getPrefixedAllowedMetaMethods(), $this->activeFunctions);
 
-        foreach ($this->activeFunctions as $functionName) {
+        foreach ($activeFunctions as $functionName) {
             if (isset($this->registry[$functionName])) {
                 $activeDefs[] = $this->registry[$functionName]['definition'];
             }
@@ -179,7 +180,7 @@ class OpenFunctionRegistry extends AbstractOpenFunction
         $activateParam = Parameter::array('functionNames')
             ->required()
             ->description("An array of valid function names to activate.");
-        $activateParam->setItems(Parameter::string(null)->enum(array_values($availableFunctions)));
+        $activateParam->setItems(Parameter::string('functionName')->description('function name you want to activate'));
         $activateDef->addParameter($activateParam);
         $metaDefs[] = $activateDef->createFunctionDescription();
 
@@ -191,7 +192,7 @@ class OpenFunctionRegistry extends AbstractOpenFunction
         $deactivateParam = Parameter::array('functionNames')
             ->required()
             ->description("An array of valid function names to deactivate.");
-        $deactivateParam->setItems(Parameter::string(null)->enum($this->activeFunctions));
+        $deactivateParam->setItems(Parameter::string('functionName')->description('function name you want to deactivate'));
         $deactivateDef->addParameter($deactivateParam);
         $metaDefs[] = $deactivateDef->createFunctionDescription();
 
@@ -211,12 +212,12 @@ class OpenFunctionRegistry extends AbstractOpenFunction
      * @param array $functionNames An array of function names to activate.
      * @return array A response message with the activation result.
      */
-    public function activateFunction(array $functionNames): array
+    public function activateFunction(array $functionNames): TextResponseItem
     {
         $messages = [];
         foreach ($functionNames as $functionName) {
             if (!isset($this->registry[$functionName])) {
-                $messages[] = "No such function: '{$functionName}'.";
+                $messages[] = "No such function: '{$functionName}'. Please load all functions and only activate existing names.";
             } elseif (in_array($functionName, $this->activeFunctions, true)) {
                 $messages[] = "Function '{$functionName}' is already activated.";
             } else {
@@ -228,22 +229,17 @@ class OpenFunctionRegistry extends AbstractOpenFunction
                 $messages[] = "Function '{$functionName}' activated.";
             }
         }
-        $messages[] = "Activated functions: " . implode(', ', $this->activeFunctions);
 
-        $responseItems = [];
-        foreach ($messages as $msg) {
-            $responseItems[] = new TextResponseItem($msg);
-        }
-        return $responseItems;
+        return new TextResponseItem(implode("\n", $messages));
     }
 
     /**
      * Deactivate multiple functions by their namespaced names.
      *
      * @param array $functionNames An array of function names to deactivate.
-     * @return array A response message with the deactivation result.
+     * @return TextResponseItem A response message with the deactivation result.
      */
-    public function deactivateFunction(array $functionNames): array
+    public function deactivateFunction(array $functionNames): TextResponseItem
     {
         $messages = [];
         foreach ($functionNames as $functionName) {
@@ -257,13 +253,8 @@ class OpenFunctionRegistry extends AbstractOpenFunction
                 $messages[] = "Function '{$functionName}' deactivated.";
             }
         }
-        $messages[] = "Activated functions: " . implode(', ', $this->activeFunctions);
 
-        $responseItems = [];
-        foreach ($messages as $msg) {
-            $responseItems[] = new TextResponseItem($msg);
-        }
-        return $responseItems;
+        return new TextResponseItem(implode("\n", $messages));
     }
 
     /**
@@ -312,9 +303,24 @@ class OpenFunctionRegistry extends AbstractOpenFunction
             );
         }
 
+        if ($this->metaEnabled) {
+            $activeFunctions = array_merge($this->getPrefixedAllowedMetaMethods(), $this->activeFunctions);
+
+            if (in_array($methodName, $activeFunctions, true) === false) {
+                return new Response(
+                    Response::STATUS_ERROR,
+                    [new TextResponseItem("function is not activated '{$methodName}'. please activate the function first.")]
+                );
+            }
+        }
+
         $entry = $this->registry[$methodName];
         $openFunction = $entry['openFunction'];
         $actualMethod = $entry['method'];
+
+        if (in_array($methodName, $this->getPrefixedAllowedMetaMethods(), true)) {
+            return parent::callMethod($actualMethod, $arguments);
+        }
 
         return $openFunction->callMethod($actualMethod, $arguments);
     }

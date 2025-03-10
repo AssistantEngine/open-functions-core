@@ -12,7 +12,10 @@ use Exception;
 class OpenFunctionRegistry extends AbstractOpenFunction
 {
     const NAMESPACE_SEPARATOR = '_';
+    const REGISTRY_NAMESPACE_NAME = 'registry';
     public const MAX_ACTIVE_FUNCTIONS = 10;
+
+    protected array $allowedMetaMethods = ['activateFunction', 'deactivateFunction', 'listFunctions'];
 
     /**
      * Whether the "meta mode" is currently enabled.
@@ -56,7 +59,7 @@ class OpenFunctionRegistry extends AbstractOpenFunction
                 throw new Exception('please provide a namespace description if you want to activate meta mode');
             }
 
-            $this->registerOpenFunction('registry', $registryNamespaceDescriptions, $this);
+            $this->registerOpenFunction(self::REGISTRY_NAMESPACE_NAME, $registryNamespaceDescriptions, $this);
         }
     }
 
@@ -68,7 +71,11 @@ class OpenFunctionRegistry extends AbstractOpenFunction
         string $namespaceDescription,
         AbstractOpenFunction $openFunction
     ): void {
-        $definitions = $openFunction->generateFunctionDefinitions();
+        if ($openFunction instanceof OpenFunctionRegistry) {
+            $definitions = $openFunction->getMetaMethodDefinitions();
+        } else {
+            $definitions = $openFunction->generateFunctionDefinitions();
+        }
 
         if (isset($this->namespaces[$namespaceName])) {
             throw new Exception('namespace "' . $namespaceName . '" is already registered');
@@ -131,15 +138,14 @@ class OpenFunctionRegistry extends AbstractOpenFunction
             return $this->getAllRegistryDefinitions();
         }
 
-        $metaDefs = $this->getMetaMethodDefinitions();
+        $activeDefs = $this->getPrefixedAllowedMetaMethods();
 
-        $activeDefs = [];
         foreach ($this->activeFunctions as $functionName) {
             if (isset($this->registry[$functionName])) {
                 $activeDefs[] = $this->registry[$functionName]['definition'];
             }
         }
-        return array_merge($metaDefs, $activeDefs);
+        return $activeDefs;
     }
 
     /**
@@ -298,13 +304,6 @@ class OpenFunctionRegistry extends AbstractOpenFunction
      */
     public function callMethod(string $methodName, array $arguments = []): Response
     {
-        $allowedMetaMethods = ['activateFunction', 'deactivateFunction', 'listFunctions'];
-
-        // If meta mode is enabled and the method is one of the meta methods...
-        if ($this->metaEnabled && in_array($methodName, $allowedMetaMethods, true)) {
-            return parent::callMethod($methodName, $arguments);
-        }
-
         // Otherwise, attempt to look up the namespaced function.
         if (!isset($this->registry[$methodName])) {
             return new Response(
@@ -318,5 +317,17 @@ class OpenFunctionRegistry extends AbstractOpenFunction
         $actualMethod = $entry['method'];
 
         return $openFunction->callMethod($actualMethod, $arguments);
+    }
+
+
+    /**
+     * Returns the allowed meta methods with the registry namespace and separator prefixed.
+     *
+     * @return array
+     */
+    protected function getPrefixedAllowedMetaMethods(): array {
+        return array_map(function(string $method) {
+            return self::REGISTRY_NAMESPACE_NAME . self::NAMESPACE_SEPARATOR . $method;
+        }, $this->allowedMetaMethods);
     }
 }

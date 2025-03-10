@@ -216,8 +216,6 @@ $sushi = new DeliveryOpenFunction([
     'Vegetable Roll'
 ]);
 
-$memoryFunc = new MemoryOpenFunction($driver);
-
 $registry->registerOpenFunction(
     'burger',
     'This is a nice burger place.',

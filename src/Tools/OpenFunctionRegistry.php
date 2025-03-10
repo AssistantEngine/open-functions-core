@@ -203,9 +203,9 @@ class OpenFunctionRegistry extends AbstractOpenFunction
      * Activate multiple functions by their namespaced names.
      *
      * @param array $functionNames An array of function names to activate.
-     * @return TextResponseItem A response message with the activation result.
+     * @return array A response message with the activation result.
      */
-    public function activateFunction(array $functionNames): TextResponseItem
+    public function activateFunction(array $functionNames): array
     {
         $messages = [];
         foreach ($functionNames as $functionName) {
@@ -223,16 +223,21 @@ class OpenFunctionRegistry extends AbstractOpenFunction
             }
         }
         $messages[] = "Activated functions: " . implode(', ', $this->activeFunctions);
-        return new TextResponseItem(implode(' ', $messages));
+
+        $responseItems = [];
+        foreach ($messages as $msg) {
+            $responseItems[] = new TextResponseItem($msg);
+        }
+        return $responseItems;
     }
 
     /**
      * Deactivate multiple functions by their namespaced names.
      *
      * @param array $functionNames An array of function names to deactivate.
-     * @return TextResponseItem A response message with the deactivation result.
+     * @return array A response message with the deactivation result.
      */
-    public function deactivateFunction(array $functionNames): TextResponseItem
+    public function deactivateFunction(array $functionNames): array
     {
         $messages = [];
         foreach ($functionNames as $functionName) {
@@ -247,7 +252,12 @@ class OpenFunctionRegistry extends AbstractOpenFunction
             }
         }
         $messages[] = "Activated functions: " . implode(', ', $this->activeFunctions);
-        return new TextResponseItem(implode(' ', $messages));
+
+        $responseItems = [];
+        foreach ($messages as $msg) {
+            $responseItems[] = new TextResponseItem($msg);
+        }
+        return $responseItems;
     }
 
     /**

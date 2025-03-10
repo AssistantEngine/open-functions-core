@@ -3,24 +3,16 @@
 namespace AssistantEngine\OpenFunctions\Core\Tools;
 
 use AssistantEngine\OpenFunctions\Core\Contracts\AbstractOpenFunction;
-use AssistantEngine\OpenFunctions\Core\Contracts\MessageListExtensionInterface;
 use AssistantEngine\OpenFunctions\Core\Helpers\FunctionDefinition;
 use AssistantEngine\OpenFunctions\Core\Helpers\Parameter;
 use AssistantEngine\OpenFunctions\Core\Models\Responses\Response;
 use AssistantEngine\OpenFunctions\Core\Models\Responses\TextResponseItem;
-use AssistantEngine\OpenFunctions\Core\Models\Messages\DeveloperMessage;
-use AssistantEngine\OpenFunctions\Core\Models\Messages\MessageList;
 use Exception;
 
-/**
- * The Registry is BOTH:
- *  - a container for all namespaces and their function definitions
- *  - an AbstractOpenFunction providing "meta" methods to activate or deactivate meta mode,
- *    list namespaces, pick an active namespace, etc.
- */
 class OpenFunctionRegistry extends AbstractOpenFunction
 {
     const NAMESPACE_SEPARATOR = '_';
+    public const MAX_ACTIVE_FUNCTIONS = 10;
 
     /**
      * Whether the "meta mode" is currently enabled.
@@ -222,6 +214,10 @@ class OpenFunctionRegistry extends AbstractOpenFunction
             } elseif (in_array($functionName, $this->activeFunctions, true)) {
                 $messages[] = "Function '{$functionName}' is already activated.";
             } else {
+                if (count($this->activeFunctions) >= self::MAX_ACTIVE_FUNCTIONS) {
+                    $messages[] = "Cannot activate '{$functionName}': maximum limit of " . self::MAX_ACTIVE_FUNCTIONS . " active functions reached. Please deactivate some functions first.";
+                    continue;
+                }
                 $this->activeFunctions[] = $functionName;
                 $messages[] = "Function '{$functionName}' activated.";
             }
